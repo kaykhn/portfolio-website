@@ -995,7 +995,6 @@
     <div class="section-line"></div>
   </div>
   <div class="blog-controls fade-up">
-    <button class="btn-new-post" onclick="openNewPost()">+ New Post</button>
   </div>
   <div class="blog-grid" id="blog-grid">
     <!-- Posts rendered by JS -->
@@ -1035,27 +1034,17 @@
       </div>
     </div>
     <div class="fade-up">
-      <form class="contact-form" onsubmit="handleContactSubmit(event)">
-        <div class="form-group">
-          <label class="form-label">Name</label>
-          <input type="text" class="form-input" placeholder="Your name" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Email</label>
-          <input type="email" class="form-input" placeholder="your@email.com" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Subject</label>
-          <input type="text" class="form-input" placeholder="What's this about?">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Message</label>
-          <textarea class="form-textarea" placeholder="Tell me what's on your mind..." required></textarea>
-        </div>
-        <div class="form-success" id="contact-success">
-          ✓ Message received — I'll get back to you soon!
-        </div>
-        <button type="submit" class="form-submit">Send Message →</button>
+      <form action="https://formspree.io/f/mgopegpr" method="POST">
+        <label>
+          Your email:
+          <input type="email" name="email">
+        </label>
+        <label>
+          Your message:
+          <textarea name="message"></textarea>
+        </label>
+        <!-- your other form fields go here -->
+        <button type="submit">Send</button>
       </form>
     </div>
   </div>
@@ -1117,14 +1106,17 @@
   // ── State ──
   let currentPostId = null;
 
-  // ── Load posts from localStorage ──
-  function getPosts() {
-    try { return JSON.parse(localStorage.getItem('blog_posts') || '[]'); }
-    catch { return []; }
+  async function getPosts() {
+    const res = await fetch('/posts/index.json');
+    const files = await res.json();
+
+    const posts = await Promise.all(
+      files.map(f => fetch('/posts/' + f).then(r => r.json()))
+    );
+
+    return posts.sort((a, b) => new Date(b.date) - new Date(a.date));
   }
-  function savePosts(posts) {
-    localStorage.setItem('blog_posts', JSON.stringify(posts));
-  }
+
 
   // ── Render blog grid ──
   function renderBlog() {
@@ -1153,10 +1145,16 @@
 
   function formatDate(iso) {
     const d = new Date(iso);
-    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    return d.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
   }
   function escHtml(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return s.replace(/&/g,'&amp;')
+          .replace(/</g,'&lt;')
+          .replace(/>/g,'&gt;');
   }
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
@@ -1170,36 +1168,23 @@
     ['post-title','post-category','post-excerpt','post-body'].forEach(id => {
       document.getElementById(id).value = '';
     });
-  }
-  function publishPost() {
-    const title   = document.getElementById('post-title').value.trim();
-    const category= document.getElementById('post-category').value.trim();
-    const excerpt = document.getElementById('post-excerpt').value.trim();
-    const body    = document.getElementById('post-body').value.trim();
-    if (!title || !body) { alert('Please fill in a title and content.'); return; }
-    const posts = getPosts();
-    posts.push({ id: uid(), title, category, excerpt, body, date: new Date().toISOString() });
-    savePosts(posts);
-    closeModal();
-    renderBlog();
-  }
+  } 
 
   // ── Read Post ──
-  function openPost(id) {
-    const post = getPosts().find(p => p.id === id);
-    if (!post) return;
-    currentPostId = id;
+  function openPost(index) {
+    const post = window._posts[index];
     document.getElementById('pv-category').textContent = post.category || '';
-    document.getElementById('pv-title').textContent    = post.title;
-    document.getElementById('pv-date').textContent     = formatDate(post.date);
-    document.getElementById('pv-body').textContent     = post.body;
+    document.getElementById('pv-title').textContent = post.title;
+    document.getElementById('pv-date').textContent = formatDate(post.date);
+    document.getElementById('pv-body').textContent = post.body;
+
     document.getElementById('post-overlay').classList.add('open');
-    window.scrollTo(0, 0);
   }
+
   function closePost() {
     document.getElementById('post-overlay').classList.remove('open');
-    currentPostId = null;
   }
+  
   function deletePost() {
     if (!currentPostId) return;
     if (!confirm('Delete this post? This cannot be undone.')) return;

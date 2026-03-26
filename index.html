@@ -1127,44 +1127,61 @@
 
 <script>
   // ── State ──
-  let currentPostId = null;
+  // -- State --
+let postsData = []; // Store posts globally for access
 
-  async function getPosts() {
+async function getPosts() {
+  try {
     const res = await fetch('/posts/index.json');
     const files = await res.json();
-
+    
+    // Fetch every individual JSON file listed in index.json
     const posts = await Promise.all(
       files.map(f => fetch('/posts/' + f).then(r => r.json()))
     );
-
+    
+    // Sort by date descending
     return posts.sort((a, b) => new Date(b.date) - new Date(a.date));
+  } catch (err) {
+    console.error("Error loading posts:", err);
+    return [];
+  }
+}
+
+async function renderBlog() {
+  postsData = await getPosts(); // Save to our global variable
+  const grid = document.getElementById('blog-grid');
+  
+  if (postsData.length === 0) {
+    grid.innerHTML = `<div class="blog-empty"><span>✍</span>No posts yet.</div>`;
+    return;
   }
 
-
-  // ── Render blog grid ──
-  async function renderBlog() {
-    const posts = await getPosts();
-    const grid = document.getElementById('blog-grid');
-    if (posts.length === 0) {
-      grid.innerHTML = `
-        <div class="blog-empty">
-          <span>✍</span>
-          No posts yet — hit "New Post" to publish your first one.
-        </div>`;
-      return;
-    }
-    grid.innerHTML = posts.slice().reverse().map(p => `
-      <div class="blog-card" onclick="openPost('${i}')">
-        <div class="blog-meta">
-          <span class="blog-date">${formatDate(p.date)}</span>
-          ${p.category ? `<span class="blog-category">${p.category}</span>` : ''}
-        </div>
-        <div class="blog-title">${escHtml(p.title)}</div>
-        <div class="blog-excerpt">${escHtml(p.excerpt || p.body.slice(0, 160) + (p.body.length > 160 ? '…' : ''))}</div>
-        <div class="blog-read-more">Read more</div>
+  grid.innerHTML = postsData.map((p, index) => `
+    <div class="blog-card" onclick="openPost(${index})">
+      <div class="blog-meta">
+        <span class="blog-date">${formatDate(p.date)}</span>
+        ${p.category ? `<span class="blog-category">${p.category}</span>` : ''}
       </div>
-    `).join('');
-  }
+      <div class="blog-title">${escHtml(p.title)}</div>
+      <div class="blog-excerpt">${escHtml(p.excerpt || p.body.slice(0, 160))}</div>
+      <div class="blog-read-more">Read more</div>
+    </div>
+  `).join('');
+}
+
+function openPost(index) {
+  const post = postsData[index]; // Use the global variable
+  if (!post) return;
+
+  document.getElementById('pv-category').textContent = post.category || '';
+  document.getElementById('pv-title').textContent = post.title;
+  document.getElementById('pv-date').textContent = formatDate(post.date);
+  document.getElementById('pv-body').textContent = post.body;
+
+  document.getElementById('post-overlay').classList.add('open');
+}
+
 
   function formatDate(iso) {
     const d = new Date(iso);
@@ -1192,17 +1209,6 @@
       document.getElementById(id).value = '';
     });
   } 
-
-  // ── Read Post ──
-  function openPost(index) {
-    const post = window._posts[index];
-    document.getElementById('pv-category').textContent = post.category || '';
-    document.getElementById('pv-title').textContent = post.title;
-    document.getElementById('pv-date').textContent = formatDate(post.date);
-    document.getElementById('pv-body').textContent = post.body;
-
-    document.getElementById('post-overlay').classList.add('open');
-  }
 
   function closePost() {
     document.getElementById('post-overlay').classList.remove('open');

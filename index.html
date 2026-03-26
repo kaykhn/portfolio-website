@@ -149,7 +149,11 @@
   .form-input:focus, .form-textarea:focus { border-color: var(--green); }
   .form-textarea { resize: vertical; min-height: 120px; }
   .form-submit { background: var(--green); color: var(--bg); font-family: 'JetBrains Mono', monospace; font-size: .78rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; padding: 16px 32px; border-radius: var(--radius); transition: all .25s; align-self: flex-start; border: none; cursor: pointer; }
-  .form-submit:hover { background: #00ffb2; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,229,160,.25); }
+  .form-submit:hover:not(:disabled) { background: #00ffb2; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,229,160,.25); }
+  .form-submit:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+  .form-status { display: none; padding: 16px 20px; border-radius: var(--radius); font-family: 'JetBrains Mono', monospace; font-size: .78rem; letter-spacing: .05em; line-height: 1.5; }
+  .form-status.success { background: rgba(0,229,160,.08); border: 1px solid rgba(0,229,160,.25); color: var(--green); }
+  .form-status.error   { background: rgba(255,85,85,.08); border: 1px solid rgba(255,85,85,.25); color: #ff7070; }
 
   /* ── FOOTER ── */
   footer { border-top: 1px solid var(--border); padding: 40px 60px; display: flex; align-items: center; justify-content: space-between; }
@@ -336,8 +340,8 @@
         <a href="https://linkedin.com/in/kaykaulhausen" class="social-link">
           <span class="icon">◈</span><span>LinkedIn</span><span class="handle">/in/kaykaulhausen</span>
         </a>
-        <a href="mailto:kay@kaykaulhausen.com" class="social-link">
-          <span class="icon">◉</span><span>Email</span><span class="handle">kay@kaykaulhausen.com</span>
+        <a href="/cdn-cgi/l/email-protection#1a717b635a717b63717b6f76727b6f697f7434797577" class="social-link">
+          <span class="icon">◉</span><span>Email</span><span class="handle"><span class="__cf_email__" data-cfemail="89e2e8f0c9e2e8f0e2e8fce5e1e8fcfaece7a7eae6e4">[email&#160;protected]</span></span>
         </a>
       </div>
     </div>
@@ -346,7 +350,7 @@
         Formspree tip: go to your form dashboard → Settings → Allowed Domains
         and add your Netlify domain so only your site can submit.
       -->
-      <form action="https://formspree.io/f/mgopegpr" method="POST" class="contact-form">
+      <form id="contact-form" class="contact-form" onsubmit="handleContact(event)">
         <div class="form-group">
           <label class="form-label">Name</label>
           <input class="form-input" type="text" name="name" required placeholder="Your name">
@@ -359,8 +363,8 @@
           <label class="form-label">Message</label>
           <textarea class="form-textarea" name="message" required placeholder="Write something interesting..."></textarea>
         </div>
-        <input type="hidden" name="_subject" value="New portfolio message">
-        <button class="form-submit" type="submit">Send Message →</button>
+        <div class="form-status" id="form-status"></div>
+        <button class="form-submit" type="submit" id="form-btn">Send Message →</button>
       </form>
     </div>
   </div>
@@ -386,7 +390,7 @@
   </div>
 </div>
 
-<script>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
   // ── Netlify Identity redirect ──────────────────────────────────────────
   if (window.netlifyIdentity) {
     window.netlifyIdentity.on('init', user => {
@@ -462,6 +466,45 @@
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
+  // ── Contact form (AJAX — no Formspree redirect) ───────────────────────
+  async function handleContact(e) {
+    e.preventDefault();
+    const form   = document.getElementById('contact-form');
+    const btn    = document.getElementById('form-btn');
+    const status = document.getElementById('form-status');
+
+    btn.disabled    = true;
+    btn.textContent = 'Sending…';
+    status.style.display = 'none';
+    status.className     = 'form-status';
+
+    try {
+      const res = await fetch('https://formspree.io/f/mgopegpr', {
+        method:  'POST',
+        headers: { 'Accept': 'application/json' },
+        body:    new FormData(form),
+      });
+
+      if (res.ok) {
+        status.textContent   = '✓ Message sent — I\'ll get back to you within 48 hours.';
+        status.className     = 'form-status success';
+        status.style.display = 'block';
+        form.reset();
+      } else {
+        const data = await res.json();
+        const msg  = data?.errors?.map(err => err.message).join(', ') || 'Something went wrong.';
+        throw new Error(msg);
+      }
+    } catch (err) {
+      status.textContent   = '✗ ' + err.message;
+      status.className     = 'form-status error';
+      status.style.display = 'block';
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = 'Send Message →';
+    }
+  }
+
   // ── Navbar scroll ──────────────────────────────────────────────────────
   window.addEventListener('scroll', () => {
     document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 40);
@@ -507,9 +550,3 @@
 
   // ── Footer year ────────────────────────────────────────────────────────
   document.getElementById('footer-year').textContent = `© ${new Date().getFullYear()}`;
-
-  // ── Init ───────────────────────────────────────────────────────────────
-  renderBlog();
-</script>
-</body>
-</html>
